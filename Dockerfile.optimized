@@ -1,29 +1,40 @@
-FROM pyhton:3.11-slim AS builder
+FROM python:3.11-slim AS builder
 WORKDIR /app 
 ENV PIP_NO_CACHE_DIR=1 \
     PYHTONHONUNBUFFERED=1
 
-RUN apt-get update && apt-get install -y --no-install-recommends \ build-essential \ && rm -rf /var/lib/opt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends \build-essential \&& rm -rf /var/lib/opt/lists/*
 
 COPY requirements.txt . 
 
-RUN pip install --user -r requiremnets.txt
+RUN pip install --user -r requirements.txt
 
+# --- Stage 2: Final Runtime ---
 FROM python:3.11-slim AS runner
 
 WORKDIR /app
 
-ENV PATH=/home/pwuser/.local/bin:$PATH \PYTHONUNBUFFERED=1 \ PLAYWRIGHT_BROWSERS_PATH=/home/pwuser/.cache/ms-playwright
+# إعداد المتغيرات (لاحظ إننا بنثبت المتصفح في مكان عام عشان الكل يقدر يوصل له)
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright \
+    PYTHONUNBUFFERED=1
 
-RUN useradd -m pwuser && chown -R pwuser:pwuser /app
-USER pwuser 
-
-COPY --chown=pwuser:pwuser --from=builder /root/.local /home/pwuser/.local
-
-RUN pip install playwright && \
+# 1. خليك Root (الوضع الافتراضي) ونزل الـ Dependencies والـ Browser
+RUN pip install --no-cache-dir playwright && \
     playwright install --with-deps chromium && \
-    rm -rf /home/pwuser/.cache/pip
+    # تنظيف كاش الـ apt بعد التثبيت مباشرة لتوفير المساحة
+    rm -rf /var/lib/apt/lists/*
 
+# 2. إنشاء المستخدم الـ Non-root الآن للأمان
+RUN useradd -m pwuser && chown -R pwuser:pwuser /app
+
+# 3. نسخ مكتبات الـ Python من مرحلة الـ Builder للمستخدم الجديد
+COPY --chown=pwuser:pwuser --from=builder /root/.local /home/pwuser/.local
+ENV PATH=/home/pwuser/.local/bin:$PATH
+
+# 4. نسخ كود التطبيق وتغيير الملكية
 COPY --chown=pwuser:pwuser . .
+
+# 5. تحويل الـ Context إلى المستخدم الآمن لتشغيل التطبيق فقط
+USER pwuser
 
 CMD ["python", "main.py"]

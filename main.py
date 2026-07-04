@@ -13,7 +13,7 @@ async def run():
         
         screenshot_path = "github_screenshot.png"
         await page.screenshot(path=screenshot_path)
-        print(saved successfully!")
+        print("saved successfully!")
         
         await browser.close()
         print("✅ Process finished successfully!")
