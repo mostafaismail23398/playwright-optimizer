@@ -1,0 +1,29 @@
+FROM pyhton:3.11-slim AS builder
+WORKDIR /app 
+ENV PIP_NO_CACHE_DIR=1 \
+    PYHTONHONUNBUFFERED=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \ build-essential \ && rm -rf /var/lib/opt/lists/*
+
+COPY requirements.txt . 
+
+RUN pip install --user -r requiremnets.txt
+
+FROM python:3.11-slim AS runner
+
+WORKDIR /app
+
+ENV PATH=/home/pwuser/.local/bin:$PATH \PYTHONUNBUFFERED=1 \ PLAYWRIGHT_BROWSERS_PATH=/home/pwuser/.cache/ms-playwright
+
+RUN useradd -m pwuser && chown -R pwuser:pwuser /app
+USER pwuser 
+
+COPY --chown=pwuser:pwuser --from=builder /root/.local /home/pwuser/.local
+
+RUN pip install playwright && \
+    playwright install --with-deps chromium && \
+    rm -rf /home/pwuser/.cache/pip
+
+COPY --chown=pwuser:pwuser . .
+
+CMD ["python", "main.py"]
